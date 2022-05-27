@@ -11,59 +11,59 @@ builtins: symmetric-encryption
 
 rule Init_A:
   [ Fr(~id) // Fresh id for A
-  , !Ltk(A, ltkAB) // Persistant long-term key A->B
-  , !Ltk(B, ltkBA) // Persistant long-term key B->A
+  , !Ltk($A, ltkAB) // Persistant long-term key A->B
+  , !Ltk($B, ltkBA) // Persistant long-term key B->A
   ]
---[ Create_A(A, ~id) ]->
-  [ St_A_1(A, ~id, ltkAB, ltkBA, B)
+--[ Create_A($A, ~id) ]->
+  [ St_A_1($A, ~id, ltkAB, ltkBA, $B)
   ]
 
 rule Init_B:
   [ Fr(~id) // Fresh id for B
-  , !Ltk(A, ltkAB) // Persistant long-term key A->B
-  , !Ltk(B, ltkBA) // Persistant long-term key B->A
+  , !Ltk($A, ltkAB) // Persistant long-term key A->B
+  , !Ltk($B, ltkBA) // Persistant long-term key B->A
   ]
---[ Create_B(B, ~id) ]->
-  [ St_B_1(B, ~id, ltkBA, ltkAB, A)
+--[ Create_B($B, ~id) ]->
+  [ St_B_1($B, ~id, ltkBA, ltkAB, $A)
   ]
 
 rule A_1_send:
-  [ St_A_1(A, ~id, ltkAB, ltkBA, B) 
+  [ St_A_1($A, ~id, ltkAB, ltkBA, $B) 
   , Fr(~x) // Fresh nonce x
   ]
---[ Send(A, ~x) ]-> // A sends x
-  [ St_A_2(A, ~id, ltkAB, ltkBA, B, ~x) 
+--[ Send($A, ~x) ]-> // A sends x
+  [ St_A_2($A, ~id, ltkAB, ltkBA, $B, ~x) 
   , Out(~x)
   ]
 
 rule B_1_receive:
-  [ St_B_1(B, ~id, ltkBA, ltkAB, A)
+  [ St_B_1($B, ~id, ltkBA, ltkAB, $A)
   , In(x)
   ]
---[ Recv(B, x) ]->
-  [ St_B_2(B, ~id, ltkBA, ltkAB, A, x)
+--[ Recv($B, x) ]->
+  [ St_B_2($B, ~id, ltkBA, ltkAB, $A, x)
   ]
 
 rule B_2_send:
   let mB2 = senc(x, ltkBA)
   in
-  [ St_B_2(B, ~id, ltkBA, ltkAB, A, x)
+  [ St_B_2($B, ~id, ltkBA, ltkAB, $A, x)
   ]
---[ Send(B, mB2) ]->
-  [ St_B_3(B, ~id, ltkBA, ltkAB, A, x)
+--[ Send($B, mB2) ]->
+  [ St_B_3($B, ~id, ltkBA, ltkAB, $A, x)
   , Out(mB2)
   ]
 
 rule A_2_receive:
   let mA2 = senc(m, ltkBA)
   in
-  [ St_A_2(A, ~id, ltkAB, ltkBA, B, ~x) 
+  [ St_A_2($A, ~id, ltkAB, ltkBA, $B, ~x) 
   , In(mA2)
   ]
---[ Rcv(A, mA2) 
+--[ Rcv($A, mA2) 
   , Finish()
   ]->
-  [ St_A_3(A, ~id, ltkAB, ltkBA, B, ~x, m) 
+  [ St_A_3($A, ~id, ltkAB, ltkBA, $B, ~x, m) 
   ]
 
 /* Lemmas to prove */
