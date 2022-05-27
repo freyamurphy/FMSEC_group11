@@ -1,0 +1,205 @@
+theory NSLPKclassnotation
+begin
+
+builtins: asymmetric-encryption
+
+// Public key infrastructure
+rule Register_pk:
+  [ Fr(~ltkA) ]
+  -->
+  [ !Ltk($A, ~ltkA), !Pk($A, pk(~ltkA)),  Out(pk(~ltkA)) ] 
+
+rule Reveal_ltk:
+  [ !Ltk(A, ltkA) ] --[ Reveal(A) ]-> [ Out(ltkA) ]
+
+/* We formalize the following protocol using the notation given in the FMSec class
+  protocol {
+    1. A -> B: {'1',na,A}pk(B)
+    2. A <- B: {'2',na,nb,B}pk(A)
+    3. A -> B: {'3',nb}pk(B)
+  }
+*/
+
+rule Init_A:
+  [ Fr(~id)
+  , !Ltk(I, ltkI)
+  , !Pk(R, pkR)
+  ]
+--[ Create_A(I, ~id) ]->
+  [ St_A_1(I, ~id, ltkI, pkR, R)
+  ]
+
+rule Init_B:
+  [ Fr(~id)
+  , !Pk(I, pkI)
+  , !Ltk(R, ltkR)
+  ]
+--[ Create_B(R, ~id) ]->
+  [ St_B_1(R, ~id, ltkR, pkI, I)
+  ]
+
+rule A_1_send:
+  let mA1 = aenc(<'1',~ni, I>,pkltkR)
+  in
+  [ St_A_1(I, ~id, ltkI, pkltkR, R) 
+  , Fr(~ni)
+  ]
+--[ Send(I, mA1) 
+  , OUT_I_1(mA1)
+  ]->
+  [ St_A_2(I, ~id, ltkI, pkltkR, R, ~ni) 
+  , Out(mA1)
+  ]
+
+rule B_1_receive:
+  let mB1 = aenc(<'1',ni, I>, pk(ltkR))
+  in
+  [ St_B_1(R, ~id, ltkR, pkltkI, I)
+  , In(mB1)
+  ]
+--[ Recv(R, mB1) 
+  , IN_R_1_ni( ni, mB1 )
+  ]->
+  [ St_B_2(R, ~id, ltkR, pkltkI, I, ni)
+  ]
+
+rule B_2_send:
+  let mB2 = aenc(<'2',ni,~nr,R>, pkltkI)
+  in
+  [ St_B_2(R, ~id, ltkR, pkltkI, I, ni)
+  , Fr(~nr)
+  ]
+--[ Send(R, mB2) 
+  , OUT_R_1( mB2 )
+  , Running(R, I, <'I', 'R', ni, ~nr>)
+  ]->
+  [ St_B_3(R, ~id, ltkR, pkltkI, I, ni, ~nr)
+  , Out(mB2)
+  ]
+
+rule A_2_receive:
+  let mA2 = aenc(<'2',~ni,nr,R>, pk(ltkI))
+  in
+  [ St_A_2(I, ~id, ltkI, pkltkR, R, ~ni) 
+  , In(mA2)
+  ]
+--[ Rcv(I, mA2) 
+  , IN_I_2_nr(nr, mA2)
+  ]->
+  [ St_A_3(I, ~id, ltkI, pkltkR, R, ~ni, nr) 
+  ]
+
+rule A_3_send:
+  let mA3 = aenc(<'3',nr>, pkltkR)
+  in
+  [ St_A_3(I, ~id, ltkI, pkltkR, R, ~ni, nr) 
+  ]
+--[ Send(I, mA3) 
+  , Secret(I, R, nr)
+  , Secret(I, R, ~ni)
+  , Honest(R)
+  , Honest(I)
+  , Running(I, R, <'R', 'I', ~ni, nr>)
+  , Commit(I, R, <'I', 'R', ~ni, nr>)
+  ]->
+  [ St_A_4(I, ~id, ltkI, pkltkR, R, ~ni, nr) 
+  , Out(mA3)
+  ]
+
+rule B_3_receive:
+  let mB3 = aenc(<'3',~nr>, pk(ltkR))
+  in
+  [ St_B_3(R, ~id, ltkR, pkltkI, I, ni, ~nr)
+  , In(mB3) ]
+--[ Recv(R, mB3) 
+  , Finish() 
+  , Secret(R, I, ~nr)
+  , Secret(R, I, ni)
+  , Honest(R)
+  , Honest(I)
+  , Commit(R, I, <'R', 'I', ni, ~nr>)
+  ]->
+  [ St_B_4(R, ~id, ltkR, pkltkI, I, ni, ~nr)
+  ]
+
+
+/* Note that we are using an untyped protocol model. For proofs, we therefore
+require a protocol specific type invariant for proof construction. In
+principle, such an invariant is not required for attack search, but does help
+a lot.
+
+See 'NSLPK3.spthy' for a detailed explanation of the construction of this
+invariant.
+*/lemma types [sources]:
+  " (All ni m1 #i.
+       IN_R_1_ni( ni, m1) @ i
+       ==>
+       ( (Ex #j. KU(ni) @ j & j < i)
+       | (Ex #j. OUT_I_1( m1 ) @ j)
+       )
+    )
+  & (All nr m2 #i.
+       IN_I_2_nr( nr, m2) @ i
+       ==>
+       ( (Ex #j. KU(nr) @ j & j < i)
+       | (Ex #j. OUT_R_1( m2 ) @ j)
+       )
+    )
+  "
+
+lemma executable:
+  exists-trace
+    "Ex #i. Finish() @i
+    "
+
+// Consistency check: ensure that secrets can be shared between honest agents.
+lemma session_key_setup_possible:
+  exists-trace
+  " /* It is possible that */
+    Ex A B s #i.
+      /* somebody claims to have setup a shared secret, */
+      Secret(A, B, s) @ i
+      /* without the adversary having performed any long-term key reveal. */
+    & not (Ex X #r. Reveal(X) @ r)
+  "
+
+lemma nonce_secrecy:
+  "All A B s #i. Secret(A, B, s) @i
+     ==> not (Ex #j. K(s) @j) 
+         | (Ex X #r. Reveal(X) @ r & Honest(X) @i)
+  "
+
+// Injective agreement from the perspective of both the initiator and the responder in one lemma.
+lemma injective_agree:
+  " /* Whenever somebody commits to running a session, then*/
+    All actor peer params #i.
+        Commit(actor, peer, params) @ i
+      ==>
+        /* there is somebody running a session with the same parameters */
+          (Ex #j. Running(peer, actor, params) @ j
+            /* and there is no other commit on the same parameters */
+            & not(Ex actor2 peer2 #i2.
+                    Commit(actor2, peer2, params) @ i2 & not(#i = #i2)
+                 )
+          )
+        /* or the adversary perform a long-term key reveal on assumed honest participant */
+        | (Ex X #r. Reveal(X) @ r & Honest(X) @i)
+  "
+
+lemma injectiveagreementINITIATOR:
+  "All a b t #i. 
+    Commit(a,b,<'I','R',t>) @i
+    ==> (Ex #j. Running(b,a,<'I','R',t>) @j 
+        & not (Ex a2 b2 #i2. Commit(a2,b2,<'I','R',t>) @i2
+                           & not (#i2 = #i)))
+              | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+lemma injectiveagreementRESPONDER:
+  "All a b t #i. 
+    Commit(a,b,<'R','I',t>) @i
+    ==> (Ex #j. Running(b,a,<'R','I',t>) @j 
+              & not (Ex a2 b2 #i2. Commit(a2,b2,<'R','I',t>) @i2
+                                 & not (#i2 = #i)))
+              | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+end
