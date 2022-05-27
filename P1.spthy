@@ -3,6 +3,12 @@ begin
 
 builtins: symmetric-encryption
 
+// Key infrastructure
+rule Register_Key:
+    [ Fr(~k) ] // Fresh key
+--[]->
+    [ !Ltk($X, ~k) ]
+
 /* Formalise protocol P1
     1. A -> B: x
     2. A <- B: {x}k(A, B)
