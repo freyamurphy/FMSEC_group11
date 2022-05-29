@@ -7,10 +7,20 @@ builtins: symmetric-encryption
 rule Register_Key:
     [ Fr(~k) ] // Fresh key
 --[]->
-    [ !Ltk($X, ~k) ]
+    [ !Ltk($B, $A, ~k) 
+    ]
 
-rule Reveal_ltk:
-  [ !Ltk(A, ltkA) ] --[ Reveal(A) ]-> [ Out(ltkA) ]
+// Ltk is revealed because A is compromised
+rule Reveal_ltk_A:
+  [ !Ltk(B, A, ltk) ] 
+--[ Reveal(A) ]-> 
+  [ Out(ltk) ]
+
+// Ltk is revealed because B is compromised
+rule Reveal_ltk_B:
+  [ !Ltk(B, A, ltk) ] 
+--[ Reveal(B) ]-> 
+  [ Out(ltk) ]
 
 /* Formalise protocol P1
     1. A -> B: x
@@ -20,64 +30,64 @@ rule Reveal_ltk:
 
 rule Init_A:
   [ Fr(~id) // Fresh id for A
-  , !Ltk($A, ltkAB) // Persistant long-term key A->B
-  , !Ltk($B, ltkBA) // Persistant long-term key B->A
+  , !Ltk(B, A, ltkBA) // Persistant long-term key B->A
   ]
---[ Create_A($A, ~id) ]->
-  [ St_A_1($A, ~id, ltkAB, ltkBA, $B)
+--[ Create_A(A, ~id) ]->
+  [ St_A_1(A, ~id, ltkBA, B)
   ]
 
 rule Init_B:
   [ Fr(~id) // Fresh id for B
-  , !Ltk($A, ltkAB) // Persistant long-term key A->B
-  , !Ltk($B, ltkBA) // Persistant long-term key B->A
+  , !Ltk(B, A, ltkBA) // Persistant long-term key B->A
   ]
---[ Create_B($B, ~id) ]->
-  [ St_B_1($B, ~id, ltkBA, ltkAB, $A)
+--[ Create_B(B, ~id) ]->
+  [ St_B_1(B, ~id, ltkBA, A)
   ]
 
 rule A_1_send:
-  [ St_A_1($A, ~id, ltkAB, ltkBA, $B) 
+  [ St_A_1(A, id, ltkBA, B) 
   , Fr(~x) // Fresh nonce x
   ]
---[ Send($A, ~x) ]-> // A sends x
-  [ St_A_2($A, ~id, ltkAB, ltkBA, $B, ~x) 
+--[ Send(A, ~x) ]-> // A sends x
+  [ St_A_2(A, id, ltkBA, B, ~x) 
   , Out(~x)
   ]
 
 rule B_1_receive:
-  [ St_B_1($B, ~id, ltkBA, ltkAB, $A)
+  [ St_B_1(B, id, ltkBA, A)
   , In(x)
   ]
---[ Recv($B, x)
-  , Running($B, $A, <'I', 'R', x) 
-  , Honest($A)
+--[ Recv(B, x)
+  , Running(B, A, <'I', 'R', x>) 
+  //, Honest(A)
+  //, Honest(B)
   ]->
-  [ St_B_2($B, ~id, ltkBA, ltkAB, $A, x)
+  [ St_B_2(B, id, ltkBA, A, x)
   ]
 
 rule B_2_send:
   let mB2 = senc(x, ltkBA)
   in
-  [ St_B_2($B, ~id, ltkBA, ltkAB, $A, x)
+  [ St_B_2(B, id, ltkBA, A, x)
   ]
---[ Send($B, mB2) ]->
-  [ St_B_3($B, ~id, ltkBA, ltkAB, $A, x)
+--[ Send(B, mB2) ]->
+  [ St_B_3(B, id, ltkBA, A, x)
   , Out(mB2)
   ]
 
 rule A_2_receive:
-  let mA2 = senc(m, ltkBA)
+  let mA2 = senc(x, ltkBA)
   in
-  [ St_A_2($A, ~id, ltkAB, ltkBA, $B, ~x) 
+  [ St_A_2(A, id, ltkBA, B, x) 
   , In(mA2)
   ]
---[ Rcv($A, mA2) 
-  , Commit($A, $B, <'I', 'R', m>)
-  , Honest($B)
+--[ Rcv(A, mA2) 
+  , Commit(A, B, <'I', 'R', x>)
+  , Honest(A)
+  , Honest(B)
   , Finish()
   ]->
-  [ St_A_3($A, ~id, ltkAB, ltkBA, $B, ~x, m) 
+  [ St_A_3(A, id, ltkBA, B, x) 
   ]
 
 /* Lemmas to prove */
