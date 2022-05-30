@@ -123,7 +123,7 @@ rule B_4_send:
   , Commit(B, A, <'R', 'I', x, y>)
   , Honest(A)
   , Honest(B)
-  , Finish(B, 'R')
+  , Finish(B, A, 'R')
   ]->
   [ St_B_5(B, id, ltkBA, ltkAB, A, x, y)
   , Out(<'RESPONDER', m>)
@@ -140,7 +140,7 @@ rule A_5_receive:
   , Commit(A, B, <'I', 'R', x, y>)
   , Honest(A)
   , Honest(B)
-  , Finish(A, 'I')
+  , Finish(A, B, 'I')
   ]->
   [ St_A_6(A, id, ltkAB, ltkBA, B, x, y)
   ]
@@ -149,8 +149,13 @@ rule A_5_receive:
 lemma executable:
   exists-trace
     "Ex a b #i #j. 
-      Finish(a, 'I') @i
-      & Finish(b, 'R') @j
+      Finish(a, b, 'I') @i
+      & Finish(b, a, 'R') @j
+      // Only one instance of each agent
+      & (All c d id1 id2 #k #l. Create_A(c, id1) @k & Create_A(d, id2) @l ==> id1 = id2)
+      & (All e f id3 id4 #m #n. Create_B(e, id3) @m & Create_B(f, id4) @n ==> id3 = id4)
+      // No agents are compromised
+      & not(Ex X #o. Reveal(X) @o)
     "
 
 // A agrees with B on x and y
