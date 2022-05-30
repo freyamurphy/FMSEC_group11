@@ -63,7 +63,6 @@ rule B_1_receive:
   , In(<'INITIATOR', x>)
   ]
 --[ Recv(B, <'INITIATOR', x>) // B receives x
-  , Running(B, A, <'I', 'R', x>) 
   ]->
   [ St_B_2(B, id, ltkBA, ltkAB, A, x)
   ]
@@ -73,7 +72,9 @@ rule B_2_send:
   [ St_B_2(B, id, ltkBA, ltkAB, A, x)
   , Fr(~y) // Fresh nonce y
   ]
---[ Send(B, <'RESPONDER', ~y>) ]-> // B sends y
+--[ Send(B, <'RESPONDER', ~y>) // B sends y
+  , Running(B, A, <'I', 'R', x, ~y>) 
+  ]->
   [ St_B_3(B, id, ltkBA, ltkAB, A, x, ~y)
   , Out(<'RESPONDER', ~y>)
   ]
@@ -84,7 +85,7 @@ rule A_3_receive:
   , In(<'RESPONDER', y>)
   ]
 --[ Recv(A, <'RESPONDER', y>) // A receives y
-  , Running(A, B, <'I', 'R', y>)
+  , Running(A, B, <'R', 'I', x, y>)
   ]->
   [ St_A_4(A, id, ltkAB, ltkBA, B, x, y)
   ]
@@ -108,9 +109,6 @@ rule B_3_receive:
   , In(<'INITIATOR', m>)
   ]
 --[ Rcv(B, <'INITIATOR', m>) 
-  , Commit(B, A, <'I', 'R', y>)
-  , Honest(A)
-  , Honest(B)
   ]->
   [ St_B_4(B, id, ltkBA, ltkAB, A, x, y) 
   ]
@@ -121,7 +119,12 @@ rule B_4_send:
   in
   [ St_B_4(B, id, ltkBA, ltkAB, A, x, y)
   ]
---[ Send(B, <'RESPONDER', m>) ]-> // B sends [x]k(B, A)
+--[ Send(B, <'RESPONDER', m>)  // B sends [x]k(B, A)
+  , Commit(B, A, <'R', 'I', x, y>)
+  , Honest(A)
+  , Honest(B)
+  , Finish(B, 'R')
+  ]->
   [ St_B_5(B, id, ltkBA, ltkAB, A, x, y)
   , Out(<'RESPONDER', m>)
   ]
@@ -134,10 +137,10 @@ rule A_5_receive:
   , In(<'RESPONDER', m>)
   ]
 --[ Recv(A, <'RESPONDER', m>)
-  , Commit(A, B, <'I', 'R', x>)
+  , Commit(A, B, <'I', 'R', x, y>)
   , Honest(A)
   , Honest(B)
-  , Finish()
+  , Finish(A, 'I')
   ]->
   [ St_A_6(A, id, ltkAB, ltkBA, B, x, y)
   ]
@@ -145,22 +148,26 @@ rule A_5_receive:
 /*** Lemmas ***/
 lemma executable:
   exists-trace
-    "Ex #i. Finish() @i
+    "Ex a b #i #j. 
+      Finish(a, 'I') @i
+      & Finish(b, 'R') @j
     "
 
+// A agrees with B on x and y
 lemma injectiveagreementINITIATOR:
-  "All a b t #i. 
-    Commit(a,b,<'I','R',t>) @i
-    ==> (Ex #j. Running(b,a,<'I','R',t>) @j 
-        & not (Ex a2 b2 #i2. Commit(a2,b2,<'I','R',t>) @i2
+  "All a b t u #i. 
+    Commit(a,b,<'I','R',t, u>) @i
+    ==> (Ex #j. Running(b,a,<'I','R',t, u>) @j 
+        & not (Ex a2 b2 #i2. Commit(a2,b2,<'I','R',t, u>) @i2
                            & not (#i2 = #i)))
               | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
+// B agrees with A on x and y
 lemma injectiveagreementRESPONDER:
-  "All a b t #i. 
-    Commit(a,b,<'R','I',t>) @i
-    ==> (Ex #j. Running(b,a,<'R','I',t>) @j 
-              & not (Ex a2 b2 #i2. Commit(a2,b2,<'R','I',t>) @i2
+  "All a b t u #i. 
+    Commit(a,b,<'R','I',t, u>) @i
+    ==> (Ex #j. Running(b,a,<'R','I',t, u>) @j 
+              & not (Ex a2 b2 #i2. Commit(a2,b2,<'R','I',t, u>) @i2
                                  & not (#i2 = #i)))
               | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
