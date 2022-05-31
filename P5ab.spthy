@@ -90,7 +90,7 @@ rule B_2_send:
   , Fr(~y) // Fresh nonce y
   ]
 --[ Send(B, <'RESPONDER', g^~y>) // B sends g^y
-  , Running(B, A, <'I', 'R', gx, g^~y>) 
+  , Running(B, A, <'I', 'R', gx, g^~y, Kab>) 
   ]->
   [ St_B_3(B, id, ltk, A, gx, s, p, ~y, Kab)
   , Out(<'RESPONDER', g^~y>)
@@ -105,7 +105,7 @@ rule A_3_receive:
   , In(<'RESPONDER', gy>)
   ]
 --[ Recv(A, <'RESPONDER', gy>) // A receives g^y
-  , Running(A, B, <'R', 'I', g^x, gy>)
+  , Running(A, B, <'R', 'I', g^x, gy, Kab>)
   ]->
   [ St_A_4(A, id, ltk, B, x, s, p, gy, Kab)
   ]
@@ -143,7 +143,7 @@ rule B_4_send:
   [ St_B_4(B, id, ltk, A, gx, s, p, y, Kab)
   ]
 --[ Send(B, m)  // B sends [g^x]Kab
-  , Commit(B, A, <'R', 'I', gx, g^y>)
+  , Commit(B, A, <'R', 'I', gx, g^y, Kab>)
   , Secret(B, Kab)
   , Honest(A)
   , Honest(B)
@@ -162,7 +162,7 @@ rule A_5_receive:
   , In(m)
   ]
 --[ Recv(A, m)
-  , Commit(A, B, <'I', 'R', g^x, gy>)
+  , Commit(A, B, <'I', 'R', g^x, gy, Kab>)
   , Secret(A, Kab)
   , Honest(A)
   , Honest(B)
@@ -186,21 +186,21 @@ lemma executable:
       & not(Ex X #o. Reveal(X) @o)
     "
 
-// A agrees with B on g^x and g^y
+// A agrees with B on g^x, g^y and Kab
 lemma injectiveagreementINITIATOR:
-  "All a b t u #i. 
-    Commit(a,b,<'I','R',t, u>) @i
-    ==> (Ex #j. Running(b,a,<'I','R',t, u>) @j 
-        & not (Ex a2 b2 #i2. Commit(a2,b2,<'I','R',t, u>) @i2
+  "All a b t u v #i. 
+    Commit(a,b,<'I','R',t, u, v>) @i
+    ==> (Ex #j. Running(b,a,<'I','R',t, u, v>) @j 
+        & not (Ex a2 b2 #i2. Commit(a2,b2,<'I','R',t, u, v>) @i2
                            & not (#i2 = #i)))
               | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-// B agrees with A on g^x and g^y
+// B agrees with A on g^x, g^y and Kab
 lemma injectiveagreementRESPONDER:
-  "All a b t u #i. 
-    Commit(a,b,<'R','I',t, u>) @i
-    ==> (Ex #j. Running(b,a,<'R','I',t, u>) @j 
-              & not (Ex a2 b2 #i2. Commit(a2,b2,<'R','I',t, u>) @i2
+  "All a b t u v #i. 
+    Commit(a,b,<'R','I',t, u, v>) @i
+    ==> (Ex #j. Running(b,a,<'R','I',t, u, v>) @j 
+              & not (Ex a2 b2 #i2. Commit(a2,b2,<'R','I',t, u, v>) @i2
                                  & not (#i2 = #i)))
               | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
