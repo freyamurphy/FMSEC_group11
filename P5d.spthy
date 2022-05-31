@@ -1,4 +1,4 @@
-theory P5ab
+theory P5d
 begin
 
 builtins: 
@@ -29,7 +29,7 @@ rule Reveal_ltk_B:
 --[ Reveal(B) ]-> 
   [ Out(ltk) ]
 
-/*** Formalise Protocol P5ab ***
+/*** Formalise Protocol P5d ***
  * Kab = h(g^(xy))
  * 1. A -> B: g^x, [s]h(k(A, B)), p
  * 2. B -> A: g^y
@@ -56,7 +56,7 @@ rule Init_B:
 // Step 1.1: A sends g^x to B
 rule A_1_send:
   let g = map(~s, $p)
-      m = <'INITIATOR', g^~x, senc(~s, h(ltk)), $p>
+      m = <g^~x, senc(~s, h(ltk)), $p>
   in
   [ St_A_1(A, id, ltk, B) 
   , Fr(~x) // Fresh nonce x
@@ -70,7 +70,7 @@ rule A_1_send:
 // Step 1.2: B receives g^x from A
 rule B_1_receive:
   let g = map(s, p)
-      m = <'INITIATOR', gx, senc(s, h(ltk)), p>
+      m = <gx, senc(s, h(ltk)), p>
   in
   [ St_B_1(B, id, ltk, A)
   , In(m)
@@ -89,11 +89,12 @@ rule B_2_send:
   [ St_B_2(B, id, ltk, A, gx, s, p)
   , Fr(~y) // Fresh nonce y
   ]
---[ Send(B, <'RESPONDER', g^~y>) // B sends g^y
+--[ Send(B, g^~y) // B sends g^y
   , Running(B, A, <'I', 'R', gx, g^~y, Kab>) 
+  , Register_Half_Keys(B, A, g^~y, gx)
   ]->
   [ St_B_3(B, id, ltk, A, gx, s, p, ~y, Kab)
-  , Out(<'RESPONDER', g^~y>)
+  , Out(g^~y)
   ]
 
 // Step 2.2: A receives nonce from B
@@ -102,10 +103,11 @@ rule A_3_receive:
       Kab = h(gy^x)
   in
   [ St_A_2(A, id, ltk, B, x, s, p)
-  , In(<'RESPONDER', gy>)
+  , In(gy)
   ]
---[ Recv(A, <'RESPONDER', gy>) // A receives g^y
+--[ Recv(A, gy) // A receives g^y
   , Running(A, B, <'R', 'I', g^x, gy, Kab>)
+  , Register_Half_Keys(A, B, g^x, gy)
   ]->
   [ St_A_4(A, id, ltk, B, x, s, p, gy, Kab)
   ]
@@ -113,7 +115,7 @@ rule A_3_receive:
 // Step 3.1: A sends encrypted nonce back to B
 rule A_4_send:
   let g = map(s, p)
-      m = senc(<'INITIATOR', gy>, Kab)
+      m = senc(gy, Kab)
   in
   [ St_A_4(A, id, ltk, B, x, s, p, gy, Kab)
   ]
@@ -125,7 +127,7 @@ rule A_4_send:
 // Step 3.2: B receives encrypted nonce from A
 rule B_3_receive:
   let g = map(s, p)
-      m = senc(<'INITIATOR', g^y>, Kab)
+      m = senc(g^y, Kab)
   in
   [ St_B_3(B, id, ltk, A, gx, s, p, y, Kab) 
   , In(m)
@@ -138,7 +140,7 @@ rule B_3_receive:
 // Step 4.1: B sends encrypted nonce back to A
 rule B_4_send:
   let g = map(s, p)
-      m = senc(<'RESPONDER', gx>,  Kab)
+      m = senc(gx,  Kab)
   in
   [ St_B_4(B, id, ltk, A, gx, s, p, y, Kab)
   ]
@@ -156,7 +158,7 @@ rule B_4_send:
 // Step 4.2: A receives encrypted nonce from B
 rule A_5_receive:
   let g = map(s, p)
-      m = senc(<'RESPONDER', g^x>, Kab)
+      m = senc(g^x, Kab)
   in
   [ St_A_5(A, id, ltk, B, x, s, p, gy, Kab)
   , In(m)
@@ -172,6 +174,10 @@ rule A_5_receive:
   ]
 
 /*** Restrictions ***/
+restriction distinct_half_keys:
+  "All a b k1 k2 #i.
+    Register_Half_Keys(a, b, k1, k2) @i ==> not(k1 = k2)
+  "
 
 /*** Lemmas ***/
 lemma executable:
