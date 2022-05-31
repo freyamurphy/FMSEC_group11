@@ -1,7 +1,10 @@
-theory P3
+theory P3a
 begin
 
 builtins: symmetric-encryption
+
+functions:
+    kdf/3 // User-defined function for kdf
 
 /*** Key Infratructure ***/
 rule Register_Key:
@@ -22,7 +25,7 @@ rule Reveal_ltk_B:
 --[ Reveal(B) ]-> 
   [ Out(ltk) ]
 
-/*** Formalise Protocol P3 ***
+/*** Formalise Protocol P3a ***
  * Kab = kdf(k(A, B), x, y)
  * 1. A -> B: x
  * 2. B -> A: y
@@ -32,109 +35,107 @@ rule Reveal_ltk_B:
 
 rule Init_A:
   [ Fr(~id) // Fresh id for A
-  , !Ltk(A, B, ltkAB) // Persistant long-term key A->B
-  , !Ltk(B, A, ltkBA) // Persistant long-term key B->A
+  , !Ltk(A, B, ltk) // Only 1 persistant long-term key
   ]
 --[ Create_A(A, ~id) ]->
-  [ St_A_1(A, ~id, ltkAB, ltkBA, B)
+  [ St_A_1(A, ~id, ltk, B)
   ]
 
 rule Init_B:
   [ Fr(~id) // Fresh id for B
-  , !Ltk(B, A, ltkBA) // Persistant long-term key B->A
-  , !Ltk(A, B, ltkAB) // Persistant long-term key A->B
+  , !Ltk(A, B, ltk) // Only 1 persistant long-term key
   ]
 --[ Create_B(B, ~id) ]->
-  [ St_B_1(B, ~id, ltkBA, ltkAB, A)
+  [ St_B_1(B, ~id, ltk, A)
   ]
 
 // Step 1.1: A sends nonce to B
 rule A_1_send:
-  [ St_A_1(A, id, ltkAB, ltkBA, B) 
+  [ St_A_1(A, id, ltk, B) 
   , Fr(~x) // Fresh nonce x
   ]
 --[ Send(A, <'INITIATOR', ~x>) ]-> // A sends x
-  [ St_A_2(A, id, ltkAB, ltkBA, B, ~x) 
+  [ St_A_2(A, id, ltk, B, ~x) 
   , Out(<'INITIATOR', ~x>)
   ]
 
 // Step 1.2: B receives nonce from A
 rule B_1_receive:
-  [ St_B_1(B, id, ltkBA, ltkAB, A)
+  [ St_B_1(B, id, ltk, A)
   , In(<'INITIATOR', x>)
   ]
 --[ Recv(B, <'INITIATOR', x>) // B receives x
   ]->
-  [ St_B_2(B, id, ltkBA, ltkAB, A, x)
+  [ St_B_2(B, id, ltk, A, x)
   ]
 
 // Step 2.1: B sends nonce to A
 rule B_2_send:
-  [ St_B_2(B, id, ltkBA, ltkAB, A, x)
+  [ St_B_2(B, id, ltk, A, x)
   , Fr(~y) // Fresh nonce y
   ]
 --[ Send(B, <'RESPONDER', ~y>) // B sends y
   , Running(B, A, <'I', 'R', x, ~y>) 
   ]->
-  [ St_B_3(B, id, ltkBA, ltkAB, A, x, ~y)
+  [ St_B_3(B, id, ltk, A, x, ~y)
   , Out(<'RESPONDER', ~y>)
   ]
 
 // Step 2.2: A receives nonce from B
 rule A_3_receive:
-  [ St_A_2(A, id, ltkAB, ltkBA, B, x)
+  [ St_A_2(A, id, ltk, B, x)
   , In(<'RESPONDER', y>)
   ]
 --[ Recv(A, <'RESPONDER', y>) // A receives y
   , Running(A, B, <'R', 'I', x, y>)
   ]->
-  [ St_A_4(A, id, ltkAB, ltkBA, B, x, y)
+  [ St_A_4(A, id, ltk, B, x, y)
   ]
 
 // Step 3.1: A sends encrypted nonce back to B
 rule A_4_send:
-  let m = <'INITIATOR', senc(<x, y>, ltkAB)>
+  let m = senc(<'INITIATOR', y>, kdf(ltk, x, y))
   in
-  [ St_A_4(A, id, ltkAB, ltkBA, B, x, y)
+  [ St_A_4(A, id, ltk, B, x, y)
   ]
---[ Send(A, m) ]-> // A sends [y]k(A, B)
-  [ St_A_5(A, id, ltkAB, ltkBA, B, x, y)
+--[ Send(A, m) ]-> // A sends [y]Kab
+  [ St_A_5(A, id, ltk, B, x, y)
   , Out(m)
   ]
 
 // Step 3.2: B receives encrypted nonce from A
 rule B_3_receive:
-  let m = <'INITIATOR', senc(<x, y>, ltkAB)>
+  let m = senc(<'INITIATOR', y>, kdf(ltk, x, y))
   in
-  [ St_B_3(B, id, ltkBA, ltkAB, A, x, y) 
+  [ St_B_3(B, id, ltk, A, x, y) 
   , In(m)
   ]
 --[ Rcv(B, m) 
   ]->
-  [ St_B_4(B, id, ltkBA, ltkAB, A, x, y) 
+  [ St_B_4(B, id, ltk, A, x, y) 
   ]
 
 // Step 4.1: B sends encrypted nonce back to A
 rule B_4_send:
-  let m = <'RESPONDER', senc(<x,y>,  ltkBA)>
+  let m = senc(<'RESPONDER', x>,  kdf(ltk, x, y))
   in
-  [ St_B_4(B, id, ltkBA, ltkAB, A, x, y)
+  [ St_B_4(B, id, ltk, A, x, y)
   ]
---[ Send(B, m)  // B sends [x]k(B, A)
+--[ Send(B, m)  // B sends [x]Kab
   , Commit(B, A, <'R', 'I', x, y>)
   , Honest(A)
   , Honest(B)
   , Finish(B, A, 'R')
   ]->
-  [ St_B_5(B, id, ltkBA, ltkAB, A, x, y)
+  [ St_B_5(B, id, ltk, A, x, y)
   , Out(m)
   ]
 
 // Step 4.2: A receives encrypted nonce from B
 rule A_5_receive:
-  let m = <'RESPONDER', senc(<x, y>, ltkBA)>
+  let m = senc(<'RESPONDER', x>, kdf(ltk, x, y))
   in
-  [ St_A_5(A, id, ltkAB, ltkBA, B, x, y)
+  [ St_A_5(A, id, ltk, B, x, y)
   , In(m)
   ]
 --[ Recv(A, m)
@@ -143,14 +144,10 @@ rule A_5_receive:
   , Honest(B)
   , Finish(A, B, 'I')
   ]->
-  [ St_A_6(A, id, ltkAB, ltkBA, B, x, y)
+  [ St_A_6(A, id, ltk, B, x, y)
   ]
 
 /*** Restrictions ***/
-restriction unidirectional_key:
-  "All a b k1 k2 #i #j.
-    Register_Key(a, b, k1) @i & Register_Key(b, a, k2) @j ==> not(k1 = k2)
-  "
 
 /*** Lemmas ***/
 lemma executable:
