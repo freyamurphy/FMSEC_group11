@@ -164,7 +164,7 @@ restriction Equality:
   "
 
 /*** Lemmas ***/
-
+// Find intended execution trace - VERIFIES
 lemma executable:
   exists-trace
     "Ex a b #i. Finish(a, b) @i & not (a = b)
@@ -175,21 +175,21 @@ lemma executable:
     & not(Ex X #n. Reveal(X) @n)
     "
 
-// Secrecy of K verifies for A and B
+// Secrecy of K_m for A and B - VERIFIES
 lemma secrecy:
   "All A x #i. 
     Secret(A,x) @i ==> 
     not (Ex #j. K(x)@j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-// Perfect forward secrecy of K verifies
+// Perfect forward secrecy of K_m - VERIFIES
 lemma secrecy_PFS:
   "All A x #i. 
     Secret(A,x) @i ==> 
     not (Ex #j. K(x)@j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i & r < i)"
 
-// A agrees with B on K (and each other's identities)
+// A agrees with B on K_m (and each other's identities) - VERIFIES
 lemma injectiveagreementINITIATOR:
   "All a b t #i. 
     Commit(a,b,<'I','R',t>) @i
@@ -198,7 +198,7 @@ lemma injectiveagreementINITIATOR:
                            & not (#i2 = #i)))
               | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-// B agrees with A on K (FAILS)
+// B agrees with A on K_m - FALSIFIES
 lemma injectiveagreementRESPONDER:
   "All a b t #i. 
     Commit(a,b,<'R','I',t>) @i

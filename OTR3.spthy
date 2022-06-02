@@ -116,7 +116,7 @@ restriction Equality:
   "
 
 /*** Lemmas ***/
-
+// Find intended execution trace - VERIFIES
 lemma executable:
   exists-trace
     "Ex a b #i. Finish(a, b) @i & not (a = b)
@@ -125,17 +125,22 @@ lemma executable:
     & (All e f id3 id4 #l #m. Create_B(e, id3) @l & Create_B(f, id4) @m ==> id3 = id4)
     & not(Ex X #n. Reveal(X) @n)
     "
-/*
-// Secrecy of K
-// Doesn't terminate...
+
+// Secrecy of K - VERIFIES
 lemma secrecy:
   "All A x #i. 
     Secret(A,x) @i ==> 
     not (Ex #j. K(x)@j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
-*/
 
-// A agrees with B on K (and each other's identities)
+// Perfect forward secrecy of K - VERIFIES
+lemma secrecy_PFS:
+  "All A x #i. 
+    Secret(A,x) @i ==> 
+    not (Ex #j. K(x)@j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i & r < i)"
+
+// A agrees with B on K (and each other's identities) - FALSIFIES
 lemma injectiveagreementINITIATOR:
   "All a b t #i. 
     Commit(a,b,<'I','R',t>) @i
@@ -144,8 +149,8 @@ lemma injectiveagreementINITIATOR:
                            & not (#i2 = #i)))
               | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-// A agrees with B on K (and each other's identities)
-// Modified to only allow 1 instance of each agent
+// A agrees with B on K (and each other's identities) 
+// Modified to only allow 1 instance of each agent - VERIFIES
 lemma injectiveagreement_INITIATOR_modified:
   "All a b t #i. 
     Commit(a,b,<'I','R',t>) @i
