@@ -122,7 +122,7 @@ lemma injectiveagreementINITIATOR:
                            & not (#i2 = #i)))
               | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-// B injectively agrees with A on the nonce x - DOES NOT VERIFY
+// B injectively agrees with A on the nonce x - FALSIFIES
 lemma injectiveagreementRESPONDER:
   "All a b t #i. 
     Commit(a,b,<'R','I',t>) @i

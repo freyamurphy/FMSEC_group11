@@ -29,6 +29,7 @@ rule Reveal_ltk_B:
  * 4. B -> A: [x, y]k(B, A)
  */
 
+// Initialise thread for initiator
 rule Init_A:
   [ Fr(~id) // Fresh id for A
   , !Ltk(A, B, ltkAB) // Persistant long-term key A->B
@@ -38,6 +39,7 @@ rule Init_A:
   [ St_A_1(A, ~id, ltkAB, ltkBA, B)
   ]
 
+// Initialise thread for responder
 rule Init_B:
   [ Fr(~id) // Fresh id for B
   , !Ltk(B, A, ltkBA) // Persistant long-term key B->A
@@ -47,7 +49,7 @@ rule Init_B:
   [ St_B_1(B, ~id, ltkBA, ltkAB, A)
   ]
 
-// Step 1.1: A sends nonce to B
+// Step 1.1: A sends nonce x to B
 rule A_1_send:
   [ St_A_1(A, id, ltkAB, ltkBA, B) 
   , Fr(~x) // Fresh nonce x
@@ -57,7 +59,7 @@ rule A_1_send:
   , Out(<'INITIATOR', ~x>)
   ]
 
-// Step 1.2: B receives nonce from A
+// Step 1.2: B receives nonce x from A
 rule B_1_receive:
   [ St_B_1(B, id, ltkBA, ltkAB, A)
   , In(<'INITIATOR', x>)
@@ -67,7 +69,7 @@ rule B_1_receive:
   [ St_B_2(B, id, ltkBA, ltkAB, A, x)
   ]
 
-// Step 2.1: B sends nonce to A
+// Step 2.1: B sends nonce y to A
 rule B_2_send:
   [ St_B_2(B, id, ltkBA, ltkAB, A, x)
   , Fr(~y) // Fresh nonce y
@@ -79,7 +81,7 @@ rule B_2_send:
   , Out(<'RESPONDER', ~y>)
   ]
 
-// Step 2.2: A receives nonce from B
+// Step 2.2: A receives nonce y from B
 rule A_3_receive:
   [ St_A_2(A, id, ltkAB, ltkBA, B, x)
   , In(<'RESPONDER', y>)
@@ -87,21 +89,21 @@ rule A_3_receive:
 --[ Recv(A, <'RESPONDER', y>) // A receives y
   , Running(A, B, <'R', 'I', x, y>)
   ]->
-  [ St_A_4(A, id, ltkAB, ltkBA, B, x, y)
+  [ St_A_3(A, id, ltkAB, ltkBA, B, x, y)
   ]
 
-// Step 3.1: A sends encrypted nonce back to B
+// Step 3.1: A sends MAC'd nonces back to B
 rule A_4_send:
   let m = <'INITIATOR', senc(<x, y>, ltkAB)>
   in
-  [ St_A_4(A, id, ltkAB, ltkBA, B, x, y)
+  [ St_A_3(A, id, ltkAB, ltkBA, B, x, y)
   ]
---[ Send(A, m) ]-> // A sends [y]k(A, B)
-  [ St_A_5(A, id, ltkAB, ltkBA, B, x, y)
+--[ Send(A, m) ]-> // A sends [x, y]k(A, B)
+  [ St_A_4(A, id, ltkAB, ltkBA, B, x, y)
   , Out(m)
   ]
 
-// Step 3.2: B receives encrypted nonce from A
+// Step 3.2: B receives MAC'd nonces from A
 rule B_3_receive:
   let m = <'INITIATOR', senc(<x, y>, ltkAB)>
   in
@@ -113,13 +115,13 @@ rule B_3_receive:
   [ St_B_4(B, id, ltkBA, ltkAB, A, x, y) 
   ]
 
-// Step 4.1: B sends encrypted nonce back to A
+// Step 4.1: B sends MAC'd nonces to A
 rule B_4_send:
   let m = <'RESPONDER', senc(<x,y>,  ltkBA)>
   in
   [ St_B_4(B, id, ltkBA, ltkAB, A, x, y)
   ]
---[ Send(B, m)  // B sends [x]k(B, A)
+--[ Send(B, m)  // B sends [x, y]k(B, A)
   , Commit(B, A, <'R', 'I', x, y>)
   , Honest(A)
   , Honest(B)
@@ -129,11 +131,11 @@ rule B_4_send:
   , Out(m)
   ]
 
-// Step 4.2: A receives encrypted nonce from B
+// Step 4.2: A receives MAC'd nonces from B
 rule A_5_receive:
   let m = <'RESPONDER', senc(<x, y>, ltkBA)>
   in
-  [ St_A_5(A, id, ltkAB, ltkBA, B, x, y)
+  [ St_A_4(A, id, ltkAB, ltkBA, B, x, y)
   , In(m)
   ]
 --[ Recv(A, m)
@@ -142,7 +144,7 @@ rule A_5_receive:
   , Honest(B)
   , Finish(A, B, 'I')
   ]->
-  [ St_A_6(A, id, ltkAB, ltkBA, B, x, y)
+  [ St_A_5(A, id, ltkAB, ltkBA, B, x, y)
   ]
 
 /*** Restrictions ***/
@@ -152,6 +154,7 @@ restriction unidirectional_key:
   "
 
 /*** Lemmas ***/
+// Find intended execution trace - VERIFIES
 lemma executable:
   exists-trace
     "Ex a b #i #j. 
@@ -164,7 +167,7 @@ lemma executable:
       & not(Ex X #o. Reveal(X) @o)
     "
 
-// A agrees with B on x and y
+// A agrees with B on x and y - VERIFIES
 lemma injectiveagreementINITIATOR:
   "All a b t u #i. 
     Commit(a,b,<'I','R',t, u>) @i
@@ -173,7 +176,7 @@ lemma injectiveagreementINITIATOR:
                            & not (#i2 = #i)))
               | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-// B agrees with A on x and y
+// B agrees with A on x and y - VERIFIES
 lemma injectiveagreementRESPONDER:
   "All a b t u #i. 
     Commit(a,b,<'R','I',t, u>) @i
